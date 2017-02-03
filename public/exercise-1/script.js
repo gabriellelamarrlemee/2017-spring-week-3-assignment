@@ -19,24 +19,31 @@ d3.queue()
 
 function dataLoaded(err,trips,stations){
 	//Create a crossfilter with trips
-
+	var cf = crossfilter(trips);
 	//Create a dimension on bike_nr
-
-	//Create a dimension on time of the day 
+	var tripsByBikeNumber = cf.dimension(function(d){return d.bike_nr});
+	//Create a dimension on time of the day
+	var tripsByTime = cf.dimension(function(d){return d.startTime.getHours() + d.startTime.getMinutes()/60});
 		//Hint: the API for crossfilter dimension requires an accessor function argument
 		//crossfilter.dimension(function(d){return ...})
 		//Within this accessor function, use Date.getHours() and Date.getMinutes() to convert a Date object to a time of the day
 
 	//Using console.log, log out the answer to the following questions
 	//What % of trips take place between 5PM and 8PM?
+		console.log(tripsByTime.filterRange([17,20]).group().size()/cf.size() * 100 + '% of trips were taken between 5PM and 8PM');
 
 	//What % of trips take place before 9AM and after 5PM?
+		console.log(tripsByTime.filterRange([20,9]).group().size()/cf.size() * 100 + '% of trips were taken between 5PM and 9AM');
 
+		tripsByTime.filterAll()
 	//How many trips were taken with each unique bike_nr? Which bike has the highest number of trip count?
-		//This will require the use dimension.group
-
+	//This will require the use dimension.group
+		console.table(tripsByBikeNumber.group().top(10)); //DONE
 	//How much travel time was logged on each unique bike_nr? Which bike has the highest travel time logged?
-		//This will require the use dimension.group, but with a different reduce function
+		var travelTimeByBikeNumber = tripsByBikeNumber.group().reduceSum(function(d){return d.duration;}).top(1);
+		console.table(tripsByBikeNumber.group().reduceSum(function(d){return d.duration;}).top(10)); //DONE
+		console.log('The highest travel time was logged on bike: ' + travelTimeByBikeNumber[0].key); //DONE
+	//This will require the use dimension.group, but with a different reduce function
 
 }
 

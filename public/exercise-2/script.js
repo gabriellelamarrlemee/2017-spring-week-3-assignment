@@ -17,11 +17,11 @@ function dataLoaded(err,trips,stations){
 	//Create crossfilter and dimensions
 	var cf = crossfilter(trips);
 	var tripsByTimeOfDay = cf.dimension(function(d){return d.startTime.getHours() + d.startTime.getMinutes()/60}),
-		tripsByGender = cf.dimension(function(d){return d.userGender}),
-		tripsByUserType = cf.dimension(function(d){return d.userType});
+			tripsByGender = cf.dimension(function(d){return d.userGender}),
+			tripsByUserType = cf.dimension(function(d){return d.userType});
 
-	drawTimeOfDay(tripsByGender.top(Infinity), plot1);
-	drawUserType(tripsByGender.top(Infinity), plot2);
+	drawTimeOfDay(tripsByTimeOfDay.top(Infinity), plot1);
+	drawUserType(tripsByUserType.top(Infinity), plot2);
 	drawUserGender(tripsByGender.top(Infinity), plot3);
 }
 
@@ -51,7 +51,7 @@ function drawTimeOfDay(arr,div){
 	//Use line and area graph to represent trips during time of the day
 	//normalized by the total number of trips
 	var scaleX = d3.scaleLinear().domain([0,24]).range([0,w]),
-		scaleY = d3.scaleLinear().domain([0,.03]).range([h,0]);
+			scaleY = d3.scaleLinear().domain([0,.03]).range([h,0]);
 	var line = d3.line()
 		.x(function(d){return scaleX(d.x0)})
 		.y(function(d){return scaleY(d.pct)});
@@ -89,6 +89,8 @@ function drawTimeOfDay(arr,div){
 	axisXNode.selectAll('.tick').selectAll('text')
 		.attr('transform','rotate(45)translate(10,0)');
 
+
+
 	//Create a brush
 	//Refer to API here: https://github.com/d3/d3-brush
 	var brush = d3.brushX()
@@ -110,7 +112,16 @@ function drawTimeOfDay(arr,div){
 /*		Exercise 2 part 1:
 		With the selected range of the brush, update the crossfilter
 		and then update the userType and userGender pie charts
-*/	}
+*/
+	//console.log(brushTime);
+	//var tripsByTimeOfDay = arr.dimension(function(d){return d.startTime.getHours() + d.startTime.getMinutes()/60});
+	//arr.filter(brushTime);
+	//console.log(arr);
+
+	var brushTime = d3.event.selection.map(scaleX.invert);
+	arr.filter(brushTime);
+
+}
 
 }
 
@@ -144,25 +155,27 @@ function drawUserType(arr,div){
 /*	Exercise 2 part 2: this part of the code does not account for the update and exit sets
 	Refractor this code to account for the update and exit sets
 */	var slices = plot
-		.append('g').attr('class','pie-chart')
+		.append('g').attr('class','pie-chart') //enter
 		.attr('transform','translate('+w/2+','+h/2+')')
 		.selectAll('.slice')
-		.data( pie(tripsByUserType) )
-		.enter()
-		.append('g').attr('class','slice');
-	slices
+		.data( pie(tripsByUserType) );
+
+		slices.enter()
+		.append('g').attr('class','slice')
 		.append('path')
+		.merge(slices) //update + enter
 		.attr('d',arc)
-		.style('fill',function(d,i){
-			return i===0?'#03afeb':null
-		});
-	slices
+		.style('fill',function(d,i){return i===0?'#03afeb':null});
+
+		slices
 		.append('text')
 		.text(function(d){return d.data.key})
 		.attr('transform',function(d){
 			var angle = (d.startAngle+d.endAngle)*180/Math.PI/2 - 90;
 			return 'rotate('+angle+')translate('+((Math.min(w,h)/2)+20)+')';
 		});
+
+		//var exit = slices.exit().remove();
 }
 
 function drawUserGender(arr,div){
@@ -176,8 +189,45 @@ function drawUserGender(arr,div){
 		.attr('class','canvas')
 		.attr('transform','translate('+m.l+','+m.t+')');
 
-/*	Exercise 2 part 3: can you complete the user gender pie chart?
-*/}
+	/*Exercise 2 part 3: can you complete the user gender pie chart?*/
+	//Transform data
+	var tripsByUserGender = d3.nest()
+		.key(function(d){return d.userGender})
+		.rollup(function(leaves){return leaves.length})
+		.entries(arr);
+	console.log(tripsByUserGender);
+
+	//Further transform data to ready it for a pie layout
+	var pie = d3.pie()
+		.value(function(d){return d.value});
+	console.log( pie(tripsByUserGender) );
+	var arc = d3.arc()
+		.innerRadius(5)
+		.outerRadius(Math.min(w,h)/2);
+
+		var slices = plot
+		.append('g').attr('class','pie-chart') //enter
+		.attr('transform','translate('+w/2+','+h/2+')')
+		.selectAll('.slice')
+		.data( pie(tripsByUserGender) );
+
+		slices.enter()
+		.append('g').attr('class','slice')
+		.append('path')
+		.merge(slices) //update + enter
+		.attr('d',arc)
+		.style('fill',function(d,i){return i===0?'#03afeb':null});
+
+		slices
+		.append('text')
+		.text(function(d){return d.data.key})
+		.attr('transform',function(d){
+			var angle = (d.startAngle+d.endAngle)*180/Math.PI/2 - 90;
+			return 'rotate('+angle+')translate('+((Math.min(w,h)/2)+20)+')';
+		});
+
+		//var exit = slices.exit().remove();
+}
 
 function parseTrips(d){
 	return {
