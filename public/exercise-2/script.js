@@ -5,8 +5,10 @@ var m = {t:85,r:100,b:50,l:100},
 	h = document.getElementById('plot1').clientHeight - m.t - m.b;
 var plots = d3.selectAll('.plot');
 var plot1 = plots.filter(function(d,i){ return i===0;}),
-	plot2 = plots.filter(function(d,i){return i===1}),
-	plot3 = plots.filter(function(d,i){return i===2});
+		plot2 = plots.filter(function(d,i){return i===1}),
+		plot3 = plots.filter(function(d,i){return i===2});
+
+var colorRamp = ['#03afeb','gray','blue'];
 
 d3.queue()
 	.defer(d3.csv,'../data/hubway_trips_reduced.csv',parseTrips)
@@ -20,12 +22,12 @@ function dataLoaded(err,trips,stations){
 			tripsByGender = cf.dimension(function(d){return d.userGender}),
 			tripsByUserType = cf.dimension(function(d){return d.userType});
 
-	drawTimeOfDay(tripsByTimeOfDay.top(Infinity), plot1);
-	drawUserType(tripsByUserType.top(Infinity), plot2);
-	drawUserGender(tripsByGender.top(Infinity), plot3);
+	drawTimeOfDay(tripsByTimeOfDay.top(Infinity), plot1, tripsByTimeOfDay);
+	drawUserType(tripsByTimeOfDay.top(Infinity), plot2);
+	drawUserGender(tripsByTimeOfDay.top(Infinity), plot3);
 }
 
-function drawTimeOfDay(arr,div){
+function drawTimeOfDay(arr,div,dimension){
 	//calculate w, h; append <svg> and <g> for plot area
 	var w = div.node().clientWidth - m.l - m.r,
 		h = div.node().clientHeight - m.t - m.b;
@@ -119,22 +121,17 @@ function drawTimeOfDay(arr,div){
 	//console.log(arr);
 
 	var brushTime = d3.event.selection.map(scaleX.invert);
-	arr.filter(brushTime);
+	dimension.filter(brushTime);
+	drawUserType(dimension.top(Infinity), plot2);
+	drawUserGender(dimension.top(Infinity), plot3);
 
-}
+	}
 
 }
 
 function drawUserType(arr,div){
 	var w = div.node().clientWidth - m.l - m.r,
-		h = div.node().clientHeight - m.t - m.b;
-	var plot = div
-		.append('svg')
-		.attr('width', w + m.l + m.r)
-		.attr('height', h + m.t + m.b)
-		.append('g')
-		.attr('class','canvas')
-		.attr('transform','translate('+m.l+','+m.t+')');
+			h = div.node().clientHeight - m.t - m.b;
 
 	//Transform data
 	var tripsByUserType = d3.nest()
@@ -152,44 +149,46 @@ function drawUserType(arr,div){
 		.outerRadius(Math.min(w,h)/2);
 
 	//Draw
-/*	Exercise 2 part 2: this part of the code does not account for the update and exit sets
-	Refractor this code to account for the update and exit sets
-*/	var slices = plot
-		.append('g').attr('class','pie-chart') //enter
-		.attr('transform','translate('+w/2+','+h/2+')')
-		.selectAll('.slice')
-		.data( pie(tripsByUserType) );
-
-		slices.enter()
-		.append('g').attr('class','slice')
-		.append('path')
-		.merge(slices) //update + enter
-		.attr('d',arc)
-		.style('fill',function(d,i){return i===0?'#03afeb':null});
-
-		slices
-		.append('text')
-		.text(function(d){return d.data.key})
-		.attr('transform',function(d){
-			var angle = (d.startAngle+d.endAngle)*180/Math.PI/2 - 90;
-			return 'rotate('+angle+')translate('+((Math.min(w,h)/2)+20)+')';
-		});
-
-		//var exit = slices.exit().remove();
-}
-
-function drawUserGender(arr,div){
-	var w = div.node().clientWidth - m.l - m.r,
-		h = div.node().clientHeight - m.t - m.b;
-	var plot = div
-		.append('svg')
+	var svg = div.selectAll('svg').data([1]); //Update
+	var svgEnter = svg.enter().append('svg')
 		.attr('width', w + m.l + m.r)
 		.attr('height', h + m.t + m.b)
 		.append('g')
 		.attr('class','canvas')
 		.attr('transform','translate('+m.l+','+m.t+')');
 
-	/*Exercise 2 part 3: can you complete the user gender pie chart?*/
+	var chartEnter = svgEnter.append('g').attr('class','pie-chart') //enter
+		.attr('transform','translate('+w/2+','+h/2+')');
+
+	var slices = svgEnter.merge(svg).select('.pie-chart')
+		.selectAll('.slice')
+		.data( pie(tripsByUserType) ); //update
+
+	var slicesEnter = slices.enter()
+		.append('g').attr('class','slice'); //this is the enter set
+
+	slicesEnter.append('path');
+	slicesEnter.append('text');
+	//slicesEnter.append('line');
+
+	slicesEnter.merge(slices).select('path')
+		.transition()
+		.attr('d',arc)
+		.style('fill',function(d,i){return colorRamp[i%2];});
+
+	slicesEnter.merge(slices).select('text')
+		.text(function(d){return d.data.key})
+		.attr('transform',function(d){
+			var angle = (d.startAngle+d.endAngle)*180/Math.PI/2 - 90;
+			return 'rotate('+angle+')translate('+((Math.min(w,h)/2)+20)+')';
+		});
+
+}
+
+function drawUserGender(arr,div){
+	var w = div.node().clientWidth - m.l - m.r,
+			h = div.node().clientHeight - m.t - m.b;
+
 	//Transform data
 	var tripsByUserGender = d3.nest()
 		.key(function(d){return d.userGender})
@@ -205,28 +204,41 @@ function drawUserGender(arr,div){
 		.innerRadius(5)
 		.outerRadius(Math.min(w,h)/2);
 
-		var slices = plot
-		.append('g').attr('class','pie-chart') //enter
-		.attr('transform','translate('+w/2+','+h/2+')')
-		.selectAll('.slice')
-		.data( pie(tripsByUserGender) );
+		//Draw
+		var svg = div.selectAll('svg').data([1]); //Update
+		var svgEnter = svg.enter().append('svg')
+			.attr('width', w + m.l + m.r)
+			.attr('height', h + m.t + m.b)
+			.append('g')
+			.attr('class','canvas')
+			.attr('transform','translate('+m.l+','+m.t+')');
 
-		slices.enter()
-		.append('g').attr('class','slice')
-		.append('path')
-		.merge(slices) //update + enter
-		.attr('d',arc)
-		.style('fill',function(d,i){return i===0?'#03afeb':null});
+		var chartEnter = svgEnter.append('g').attr('class','pie-chart') //enter
+			.attr('transform','translate('+w/2+','+h/2+')');
 
-		slices
-		.append('text')
-		.text(function(d){return d.data.key})
-		.attr('transform',function(d){
-			var angle = (d.startAngle+d.endAngle)*180/Math.PI/2 - 90;
-			return 'rotate('+angle+')translate('+((Math.min(w,h)/2)+20)+')';
-		});
+		var slices = svgEnter.merge(svg).select('.pie-chart')
+			.selectAll('.slice')
+			.data( pie(tripsByUserGender) ); //update
 
-		//var exit = slices.exit().remove();
+		var slicesEnter = slices.enter()
+			.append('g').attr('class','slice'); //this is the enter set
+
+		slicesEnter.append('path');
+		slicesEnter.append('text');
+		//slicesEnter.append('line');
+
+		slicesEnter.merge(slices).select('path')
+			.transition()
+			.attr('d',arc)
+			.style('fill',function(d,i){return colorRamp[i%3];});
+
+		slicesEnter.merge(slices).select('text')
+			.text(function(d){return d.data.key})
+			.attr('transform',function(d){
+				var angle = (d.startAngle+d.endAngle)*180/Math.PI/2 - 90;
+				return 'rotate('+angle+')translate('+((Math.min(w,h)/2)+20)+')';
+			});
+
 }
 
 function parseTrips(d){
